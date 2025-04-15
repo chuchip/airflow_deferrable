@@ -1,0 +1,6 @@
+/airflow_env
+scheduler.log
+triggerer.log
+webserver.log
+airflow-webserver.pid
+logs/
