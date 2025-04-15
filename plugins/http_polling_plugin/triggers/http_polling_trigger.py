@@ -1,12 +1,16 @@
 import asyncio
 import aiohttp
 import logging
+import json
 from typing import Any, Dict, Tuple, Optional, Sequence, Union
 
 from airflow.providers.http.hooks.http import HttpHook
 from airflow.triggers.base import BaseTrigger, TriggerEvent
 from airflow.exceptions import AirflowException
 from json import JSONDecodeError
+
+class JsonException(Exception):
+    pass
 
 # Optional: Set up basic logging if running the trigger standalone for testing
 # logging.basicConfig(level=logging.INFO)
@@ -78,10 +82,6 @@ class HttpPollingTrigger(BaseTrigger):
         )
 
     async def _make_http_call(self, session: aiohttp.ClientSession) -> Optional[Dict[str, Any]]:
-    
-     
-        
-      
         total_attempts = 1 + self.http_check_retries
         url=self.endpoint
         merged_headers = {
@@ -89,22 +89,33 @@ class HttpPollingTrigger(BaseTrigger):
             "Authorization": "Bearer YOUR_ACCESS_TOKEN",
             **self.headers
         }
+        self.log.info("- Headers:",merged_headers)
+        self.log.info(f"- Body: {self.data}")
+        data=self.data
+        try:
+            if data is not None:
+                data = json.load(data)
+        except Exception as e:
+            self.log.warning("data wasn't type json")
         for attempt in range(total_attempts):
             self.log.info(f"Attempt {attempt + 1}/{total_attempts}: Calling {self.method} {url}")
             try:
                 async with session.request(
-                    self.method, url, json=self.data, headers=merged_headers
+                    self.method, url, json=data, headers=merged_headers
                 ) as response:
                     response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
                     try:
                         result = await response.json()
                         self.log.debug(f"Response JSON received: {result}")
+                        if result is None:
+                         # _make_http_call failed after all its retries
+                            raise JsonException('Result was None')
+                        if self.response_field not in result:
+                             raise  JsonException(f"Field '{self.response_field}' not found in response." )
                         return result # Success!
-                    except (JSONDecodeError, aiohttp.ContentTypeError) as json_err:
+                    except (JSONDecodeError, JsonException,aiohttp.ContentTypeError) as json_err:
                          # Treat inability to parse JSON as a failure of this attempt
-                         self.log.warning(f"Failed to decode JSON response (attempt {attempt + 1}): {json_err}")
-                         # Decide if this specific error should be retried or fail immediately
-                         # For now, we'll let it retry unless it's the last attempt
+                         self.log.warning(f"Failed to decode JSON response (attempt {attempt + 1}): {json_err}")                   
 
             except aiohttp.ClientResponseError as e:
                 # Specific HTTP status errors
@@ -121,7 +132,7 @@ class HttpPollingTrigger(BaseTrigger):
                  self.log.exception(f"An unexpected error occurred during HTTP check (attempt {attempt + 1}): {e}")
                  # Depending on the error, you might want to retry or fail immediately
                  # For safety, we'll let it retry unless it's the last attempt
-
+            
             # If we are here, the attempt failed and we might retry
             if attempt < self.http_check_retries:
                 self.log.info(f"Waiting {self.retry_delay}s before next HTTP check retry...")
@@ -144,18 +155,11 @@ class HttpPollingTrigger(BaseTrigger):
                 while True:
                     json_response = await self._make_http_call(session)
 
-                    if json_response is None:
-                         # _make_http_call failed after all its retries
-                         yield TriggerEvent({
-                             "status": "error",
-                             "message": f"HTTP Polling failed: Could not reach endpoint after {1 + self.http_check_retries} attempts."
-                         })
-                         return # Exit the trigger run loop
+                   
 
                     # Check the response field if the call was successful
                     try:
-                        if self.response_field not in json_response:
-                             raise KeyError(f"Field '{self.response_field}' not found in response.")
+                       
 
                         status_value = json_response.get(self.response_field)
                         self.log.info(f"Found status value: '{status_value}' in field '{self.response_field}'")

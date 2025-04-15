@@ -4,3 +4,4 @@ triggerer.log
 webserver.log
 airflow-webserver.pid
 logs/
+**/__pycache__/
