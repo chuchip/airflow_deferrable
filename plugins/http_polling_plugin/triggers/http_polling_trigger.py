@@ -1,7 +1,7 @@
 import asyncio
 import aiohttp
-import logging
 import json
+import ssl
 from typing import Any, Dict, Tuple, Optional, Sequence, Union
 
 from airflow.providers.http.hooks.http import HttpHook
@@ -84,12 +84,8 @@ class HttpPollingTrigger(BaseTrigger):
     async def _make_http_call(self, session: aiohttp.ClientSession) -> Optional[Dict[str, Any]]:
         total_attempts = 1 + self.http_check_retries
         url=self.endpoint
-        merged_headers = {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer YOUR_ACCESS_TOKEN",
-            **self.headers
-        }
-        self.log.info("- Headers:",merged_headers)
+
+        self.log.info("- Headers: {self.headers}")
         self.log.info(f"- Body: {self.data}")
         data=self.data
         try:
@@ -101,7 +97,7 @@ class HttpPollingTrigger(BaseTrigger):
             self.log.info(f"Attempt {attempt + 1}/{total_attempts}: Calling {self.method} {url}")
             try:
                 async with session.request(
-                    self.method, url, json=data, headers=merged_headers
+                    self.method, url, json=data, headers=self.headers
                 ) as response:
                     response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
                     try:
@@ -149,18 +145,17 @@ class HttpPollingTrigger(BaseTrigger):
     async def run(self):
         self.log.info("Executing run... ")
         """Main polling loop run by the Triggerer."""
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE  #
         try:
              # Create session within run using connection details from hook
             async with aiohttp.ClientSession() as session:
                 while True:
                     json_response = await self._make_http_call(session)
-
                    
-
                     # Check the response field if the call was successful
                     try:
-                       
-
                         status_value = json_response.get(self.response_field)
                         self.log.info(f"Found status value: '{status_value}' in field '{self.response_field}'")
 
