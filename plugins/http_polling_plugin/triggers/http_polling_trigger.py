@@ -97,7 +97,7 @@ class HttpPollingTrigger(BaseTrigger):
             self.log.info(f"Attempt {attempt + 1}/{total_attempts}: Calling {self.method} {url}")
             try:
                 async with session.request(
-                    self.method, url, json=data, headers=self.headers
+                    self.method, url, json=data, headers=self.headers,ssl=False
                 ) as response:
                     response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
                     try:
@@ -145,9 +145,6 @@ class HttpPollingTrigger(BaseTrigger):
     async def run(self):
         self.log.info("Executing run... ")
         """Main polling loop run by the Triggerer."""
-        ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE  #
         try:
              # Create session within run using connection details from hook
             async with aiohttp.ClientSession() as session:

@@ -13,7 +13,7 @@ import requests
 # with base URL like 'https://api.example.com'
 
 def call_api(**kwargs):
-    response=requests.request("GET","http://localhost:5000/init")
+    response=requests.request("GET","https://localhost:5443/init",verify=False)
     print(response.json())
     return json.dumps(response.json())
     
@@ -39,7 +39,7 @@ with DAG(
     wait_for_completion = HttpPollingDeferrableOperator(
         task_id="wait_for_api_completion",
         http_conn_id="my_api_connection",        # Your Airflow HTTP connection ID        
-        endpoint="http://localhost:5000/test", # Templatable endpoint
+        endpoint="https://localhost:5443/test", # Templatable endpoint
         method="POST",
         data= '{{ ti.xcom_pull(task_ids="call_api") }}',
         response_field="job_status",      # Check the 'job_status' field in the JSON
