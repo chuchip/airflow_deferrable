@@ -106,11 +106,12 @@ class HttpPollingTrigger(BaseTrigger):
                         if result is None:
                          # _make_http_call failed after all its retries
                             raise JsonException(f'Result was None {log_error}')
-                        if self.response_field not in result:
-                             raise  JsonException(f"Field '{self.response_field}' not found in response. {log_error}" )
+                        if self.response_field not in result:                             
+                             raise  JsonException(f"Field '{self.response_field}' not found in response {{result}}. {log_error}" )
                         return result # Success!
                     except (JSONDecodeError, JsonException,aiohttp.ContentTypeError) as json_err:
                          # Treat inability to parse JSON as a failure of this attempt
+                         log_error+= f"Failed to decode JSON response: {response} (attempt {attempt + 1}): {json_err}"
                          self.log.warning(f"Failed to decode JSON response (attempt {attempt + 1}): {json_err}")                   
 
             except aiohttp.ClientResponseError as e:
