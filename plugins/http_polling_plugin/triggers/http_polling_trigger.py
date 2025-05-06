@@ -84,7 +84,7 @@ class HttpPollingTrigger(BaseTrigger):
     async def _make_http_call(self, session: aiohttp.ClientSession) -> Optional[Dict[str, Any]]:
         total_attempts = 1 + self.http_check_retries
         url=self.endpoint
-
+        log_error= f"Headers: {self.headers} - Body: {self.data} - URL: {url} Method: {self.method}"  
         self.log.info("- Headers: {self.headers}")
         self.log.info(f"- Body: {self.data}")
         data=self.data
@@ -105,9 +105,9 @@ class HttpPollingTrigger(BaseTrigger):
                         self.log.debug(f"Response JSON received: {result}")
                         if result is None:
                          # _make_http_call failed after all its retries
-                            raise JsonException('Result was None')
+                            raise JsonException(f'Result was None {log_error}')
                         if self.response_field not in result:
-                             raise  JsonException(f"Field '{self.response_field}' not found in response." )
+                             raise  JsonException(f"Field '{self.response_field}' not found in response. {log_error}" )
                         return result # Success!
                     except (JSONDecodeError, JsonException,aiohttp.ContentTypeError) as json_err:
                          # Treat inability to parse JSON as a failure of this attempt
@@ -115,6 +115,7 @@ class HttpPollingTrigger(BaseTrigger):
 
             except aiohttp.ClientResponseError as e:
                 # Specific HTTP status errors
+                log_error+= f"HTTP check failed (attempt {attempt + 1}): Status {e.status} - {e.message}"
                 self.log.warning(f"HTTP check failed (attempt {attempt + 1}): Status {e.status} - {e.message}")
                 # Don't retry client errors (4xx) by default unless configured otherwise
                 if 400 <= e.status < 500:
@@ -122,12 +123,13 @@ class HttpPollingTrigger(BaseTrigger):
                     return None # Indicate non-retriable failure for this check cycle
             except (aiohttp.ClientError, asyncio.TimeoutError, ConnectionRefusedError) as e:
                  # Other connection/network errors - these are typically retriable
+                 log_error+= f"HTTP check failed (attempt {attempt + 1}): {type(e).__name__} - {e}"
                  self.log.warning(f"HTTP check failed (attempt {attempt + 1}): {type(e).__name__} - {e}")
             except Exception as e:
                  # Catch unexpected errors during the request
-                 self.log.exception(f"An unexpected error occurred during HTTP check (attempt {attempt + 1}): {e}")
-                 # Depending on the error, you might want to retry or fail immediately
-                 # For safety, we'll let it retry unless it's the last attempt
+                 log_error+= f"An unexpected error occurred during HTTP check (attempt {attempt + 1}): {e} "
+                 self.log.exception(f"An unexpected error occurred during HTTP check (attempt {attempt + 1}): {e} ")
+                 
             
             # If we are here, the attempt failed and we might retry
             if attempt < self.http_check_retries:
@@ -136,10 +138,11 @@ class HttpPollingTrigger(BaseTrigger):
             else:
                  # This was the last attempt
                  self.log.error("HTTP check failed after all retries.")
-                 return None # Indicate final failure after all retries
+                 raise Exception(f"HTTP check failed after {total_attempts} attempts. {log_error}")  
+                 
 
         # Should technically not be reached if logic is correct, but safety return
-        return None
+        raise Exception(f"Output not controllled {total_attempts} attempts. {log_error}")  
 
 
     async def run(self):
@@ -153,6 +156,9 @@ class HttpPollingTrigger(BaseTrigger):
                    
                     # Check the response field if the call was successful
                     try:
+                        if json_response is None:
+                            self.log.error("No response received. Exiting trigger")
+                            yield TriggerEvent({"status": "error", "message": f"No response received. json_response: {json_response}"})
                         status_value = json_response.get(self.response_field)
                         self.log.info(f"Found status value: '{status_value}' in field '{self.response_field}'")
 

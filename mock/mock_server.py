@@ -17,4 +17,5 @@ async def test_post():
     print(json)
     return jsonify({'message': 'Response OK!','job_status': 'COMPLETED'})
 if __name__ == '__main__':
-    app.run(ssl_context='adhoc', host='0.0.0.0', port=5443, debug=True)
+ #   app.run(ssl_context='adhoc', host='0.0.0.0', port=5443, debug=True)
+    app.run( host='0.0.0.0', port=5443, debug=True)
