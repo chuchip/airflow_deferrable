@@ -84,15 +84,18 @@ class HttpPollingTrigger(BaseTrigger):
     async def _make_http_call(self, session: aiohttp.ClientSession) -> Optional[Dict[str, Any]]:
         total_attempts = 1 + self.http_check_retries
         url=self.endpoint
-        log_error= f"Headers: {self.headers} - Body: {self.data} - URL: {url} Method: {self.method}"  
+        
         self.log.info("- Headers: {self.headers}")
         self.log.info(f"- Body: {self.data}")
         data=self.data
+        log_error=""
         try:
             if data is not None:
                 data = json.load(data)
         except Exception as e:
-            self.log.warning("data wasn't type json")
+            log_error= f"Failed to load JSON data {e}"
+            self.log.warning("Failed to load JSON data: {e}")
+        log_error+= f"Headers: {self.headers} (Type: {type(self.headers)}) - Body: {data} - URL: {url} Method: {self.method} "
         for attempt in range(total_attempts):
             self.log.info(f"Attempt {attempt + 1}/{total_attempts}: Calling {self.method} {url}")
             try:

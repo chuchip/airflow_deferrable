@@ -13,8 +13,10 @@ async def test_get():
 @app.route('/test', methods=['POST'])
 async def test_post():
     print("In test post")
-    json=request.get_json()
-    print(json)
+    headers = request.headers
+    print("headers: ",headers)
+    json = request.get_json()
+    print("json: ",json)
     return jsonify({'message': 'Response OK!','job_status': 'COMPLETED'})
 if __name__ == '__main__':
  #   app.run(ssl_context='adhoc', host='0.0.0.0', port=5443, debug=True)

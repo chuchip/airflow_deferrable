@@ -39,7 +39,7 @@ with DAG(
     wait_for_completion = HttpPollingDeferrableOperator(
         task_id="wait_for_api_completion",
         http_conn_id="my_api_connection",        # Your Airflow HTTP connection ID        
-        endpoint="http://localhost:5444/test", # Templatable endpoint
+        endpoint="http://localhost:5443/test", # Templatable endpoint
         method="POST",
         data= '{{ ti.xcom_pull(task_ids="call_api") }}',
         response_field="job_status",      # Check the 'job_status' field in the JSON
@@ -47,8 +47,8 @@ with DAG(
         failure_values=["FAILED", "ABORTED"], # Fail if job_status is FAILED or ABORTED
         poke_interval=5,                 # Check every 60 seconds
         http_check_retries=4,             # Retry a failed HTTP GET 4 times (total 5 attempts)
-        retry_delay=10.0,                 # Wait 10s between failed HTTP GET retries
-        #headers={'data': '{{ ti.xcom_pull(task_ids="call_api") }}'}, # Example templated header
+        retry_delay=5.0,                 # Wait 10s between failed HTTP GET retries
+        headers={'Content-Type': 'application/json'}, # Example templated header
     )
 
     end = EmptyOperator(task_id="end")
