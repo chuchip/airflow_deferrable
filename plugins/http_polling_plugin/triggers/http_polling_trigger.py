@@ -91,7 +91,7 @@ class HttpPollingTrigger(BaseTrigger):
         log_error=""
         try:
             if data is not None:
-                data = json.load(data)
+                data = json.loads(data)
         except Exception as e:
             log_error= f"Failed to load JSON data {e}"
             self.log.warning("Failed to load JSON data: {e}")
