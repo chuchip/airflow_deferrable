@@ -1,0 +1,41 @@
+import org.apache.spark.SparkFiles
+
+// 1. Define the source path of your JKS file.
+// This should be a path accessible by Databricks (e.g., DBFS, S3, ADLS).
+val jksSourcePath = "dbfs:/FileStore/path/to/my_truststore.jks"
+val trustStorePassword = "your_password"
+val jksFileName = "my_truststore.jks"
+
+// 2. Distribute the JKS file to the Spark driver and all executors.
+spark.sparkContext.addFile(jksSourcePath)
+
+// 3. Get the local, distributed path on the current node.
+// This path will be different on each machine (driver/executors).
+val localJksPath = SparkFiles.get(jksFileName)
+
+// 4. Configure the JVM System Properties
+//
+// You must set these properties on the JVM running your application logic.
+// If you are using a standard connector (like JDBC), the connector will
+// read these properties.
+
+// Set properties for the current JVM (typically the driver/notebook JVM)
+System.setProperty("javax.net.ssl.trustStore", localJksPath)
+System.setProperty("javax.net.ssl.trustStorePassword", trustStorePassword)
+
+// IMPORTANT: For executors, you must set these properties in the
+// Cluster Configuration instead of in the code, or use a method that
+// applies configuration globally, like a Spark Job Submission.
+
+// If you are setting up a configuration object for a specific library,
+// pass the localJksPath and password directly:
+/*
+val connectionConfig = Map(
+  "trustStore" -> localJksPath,
+  "trustStorePassword" -> trustStorePassword,
+  // ... other connection properties
+)
+*/
+
+println(s"JKS file has been distributed and is referenced locally at: $localJksPath")
+// Now, continue with the application logic that needs the truststore (e.g., connecting to a database)
